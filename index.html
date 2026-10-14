@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Exam Proctor & Integrity Monitor | Client-Side WebAssembly</title>
+  <meta name="description" content="AI-Powered Exam Proctoring & Integrity Monitor running 100% client-side via MediaPipe WebAssembly. Real-time gaze tracking, multiple face detection, prohibited device detection, and visual evidence logging.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%22100%22%20%22100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Google Fonts for crisp modern dashboard typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <!-- Global App Container -->
+  <div class="app-layout">
+    
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-icon-wrapper">
+          <svg class="brand-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="pulse-indicator"></span>
+        </div>
+        <div class="brand-titles">
+          <h1>SENTINEL-AI <span class="badge-tag">PROCTOR v2.0</span></h1>
+          <p class="brand-sub">Client-Side WASM Computer Vision & Integrity Monitor</p>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <!-- Candidate & Exam Info Pill -->
+        <div class="meta-pill candidate-pill" id="candidateMetaPill" title="Click Settings to edit candidate details">
+          <span class="pill-dot green"></span>
+          <span class="pill-label">Candidate:</span>
+          <span class="pill-value" id="headerCandidateName">Jane Doe (ID: ST-8821)</span>
+        </div>
+
+        <!-- Session Timer -->
+        <div class="meta-pill timer-pill">
+          <span class="rec-dot" id="recDot"></span>
+          <span class="pill-label">SESSION:</span>
+          <span class="pill-value mono" id="sessionTimer">00:00:00</span>
+        </div>
+
+        <!-- Backend Sync Status Pill -->
+        <div class="meta-pill backend-pill" id="backendStatusPill" title="Checks optional FastAPI backend connectivity">
+          <span class="pill-dot yellow" id="backendDot"></span>
+          <span class="pill-value" id="backendStatusText">Checking Cloud...</span>
+        </div>
+
+        <!-- Top Right Actions -->
+        <div class="header-actions">
+          <button id="btnSettingsOpen" class="btn-icon" title="Proctoring Threshold Settings" aria-label="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+          <button id="btnAudioToggle" class="btn-icon" title="Toggle Audio Alert Chime" aria-label="Toggle Audio">
+            <svg id="audioIconOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+            <svg id="audioIconOff" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <line x1="23" y1="9" x2="17" y2="15"/>
+              <line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Split Grid -->
+    <main class="dashboard-main">
+      
+      <!-- LEFT PANEL: HUD Live Video Feed & Primary Controls -->
+      <section class="left-panel">
+        
+        <!-- Video Feed Container -->
+        <div class="video-hud-card">
+          <div class="hud-frame" id="hudFrame">
+            <!-- Hidden raw video element -->
+            <video id="webcamVideo" autoplay playsinline muted></video>
+            <!-- Canvas Overlay for Mesh, Boxes, and Telemetry Graphics -->
+            <canvas id="outputCanvas"></canvas>
+
+            <!-- Loading Spinner & Model Download Progress Overlay -->
+            <div class="hud-loader-overlay" id="loaderOverlay">
+              <div class="spinner-orbit">
+                <div class="spinner-ring"></div>
+                <div class="spinner-core">🛡️</div>
+              </div>
+              <h3 id="loaderTitle">Initializing WebAssembly Models...</h3>
+              <p id="loaderMessage">Downloading MediaPipe FaceLandmarker & ObjectDetector from Google CDN</p>
+              <div class="loader-progress-bar">
+                <div class="progress-fill" id="loaderProgressFill"></div>
+              </div>
+            </div>
+
+            <!-- Room Mask Scan Progress Overlay -->
+            <div class="room-mask-scan-overlay hidden" id="roomMaskOverlay">
+              <div class="scan-radar"></div>
+              <div class="scan-info">
+                <div class="scan-badge">ENVIRONMENT CALIBRATION</div>
+                <h4 id="maskScanTitle">MAPPING ROOM BACKGROUND (2.0s)...</h4>
+                <p id="maskScanSub">Keep your body still. Mapping static hangers, clothes, doors, and furniture.</p>
+                <div class="scan-progress-bar">
+                  <div class="scan-fill" id="maskScanProgressFill"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top HUD Live Dynamic Status Banner -->
+            <div class="hud-status-banner status-normal" id="hudStatusBanner">
+              <span class="status-indicator-dot"></span>
+              <span class="status-text" id="hudStatusText">SYSTEM INITIALIZING</span>
+              <span class="status-subtext" id="hudStatusSubtext">Camera stream awaiting user authorization</span>
+            </div>
+
+            <!-- HUD Overlay Stats Widgets -->
+            <div class="hud-corner top-left">
+              <div class="hud-stat-pill">
+                <span class="hud-stat-key">WASM FPS:</span>
+                <span class="hud-stat-val mono" id="hudFps">00</span>
+              </div>
+              <div class="hud-stat-pill">
+                <span class="hud-stat-key">LATENCY:</span>
+                <span class="hud-stat-val mono" id="hudLatency">0ms</span>
+              </div>
+            </div>
+
+            <div class="hud-corner top-right">
+              <!-- Gaze Countdown Progress Badge -->
+              <div class="lookaway-progress-badge hidden" id="lookawayBadge">
+                <span class="badge-title">LOOK-AWAY HOLD:</span>
+                <div class="progress-ring-container">
+                  <span class="progress-countdown mono" id="lookawayCountdown">0.0s</span>
+                  <div class="linear-progress-bar">
+                    <div class="fill" id="lookawayProgressFill"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hud-corner bottom-left">
+              <div class="hud-stat-pill" id="facesDetectedPill">
+                <span class="hud-stat-key">FACES:</span>
+                <span class="hud-stat-val mono" id="hudFaceCount">0</span>
+              </div>
+              <div class="hud-stat-pill" id="objectsDetectedPill">
+                <span class="hud-stat-key">OBJECTS:</span>
+                <span class="hud-stat-val mono" id="hudObjectCount">0</span>
+              </div>
+              <div class="hud-stat-pill hidden" id="roomMaskActivePill" title="Room background mask active. Static clutter is suppressed.">
+                <span class="hud-stat-key">ROOM MASK:</span>
+                <span class="hud-stat-val mono" id="roomMaskCount">0 ZONES</span>
+              </div>
+            </div>
+
+            <div class="hud-corner bottom-right">
+              <div class="hud-posture-quick" id="hudPostureQuick">
+                <span class="posture-dir" id="hudDirectionBadge">CENTERED</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Control Bar -->
+          <div class="video-toolbar">
+            <div class="btn-group main-controls">
+              <button id="btnStartSession" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span id="btnStartSessionText">Start Proctored Session</span>
+              </button>
+
+              <button id="btnCalibrate" class="btn btn-secondary" title="Sets your current looking-at-screen posture as neutral baseline 0°">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="2" x2="12" y2="6"/>
+                  <line x1="12" y1="18" x2="12" y2="22"/>
+                  <line x1="2" y1="12" x2="6" y2="12"/>
+                  <line x1="18" y1="12" x2="22" y2="12"/>
+                </svg>
+                <span>Calibrate Neutral Posture</span>
+              </button>
+
+              <button id="btnCaptureBackgroundMask" class="btn btn-secondary" title="Capture static room clutter and clothes on hangers for 2 seconds to suppress background false positives">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <span id="btnCaptureMaskText">Capture Room Mask (2s)</span>
+              </button>
+
+              <button id="btnEndSession" class="btn btn-danger" disabled>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"/>
+                </svg>
+                <span>End Exam & Export</span>
+              </button>
+            </div>
+
+            <!-- Visual Layer Switches -->
+            <div class="btn-group toggle-controls">
+              <label class="toggle-pill" title="Toggle 3D facial landmark mesh visualization">
+                <input type="checkbox" id="chkShowMesh" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Face Mesh</span>
+              </label>
+
+              <label class="toggle-pill" title="Toggle object bounding boxes">
+                <input type="checkbox" id="chkShowBoxes" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Object Boxes</span>
+              </label>
+
+              <label class="toggle-pill" title="Toggle candidate active reach zone ROI">
+                <input type="checkbox" id="chkShowROI" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Workspace ROI</span>
+              </label>
+
+              <label class="toggle-pill" title="Toggle display of suppressed static clutter & hand false positives">
+                <input type="checkbox" id="chkShowSuppressed" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Suppressed Items</span>
+              </label>
+
+              <label class="toggle-pill" title="Toggle HUD graphics overlay">
+                <input type="checkbox" id="chkShowHUD" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">HUD Gauges</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Head Pose & Gaze Attention Telemetry Card -->
+        <div class="telemetry-card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="8"/>
+                <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+                <circle cx="12" cy="12" r="2"/>
+              </svg>
+              <h3>Head Pose & Gaze Orientation Telemetry</h3>
+            </div>
+            <span class="status-pill-small" id="postureStatusPill">OPTIMAL ALIGNMENT</span>
+          </div>
+
+          <div class="gauges-grid">
+            <!-- Yaw (Left - Right) Gauge -->
+            <div class="gauge-box">
+              <div class="gauge-meta">
+                <span class="gauge-name">YAW (Left / Right)</span>
+                <span class="gauge-val mono" id="yawVal">0.0°</span>
+              </div>
+              <div class="horizontal-meter-track">
+                <div class="meter-center-mark"></div>
+                <div class="meter-danger-zone left"></div>
+                <div class="meter-danger-zone right"></div>
+                <div class="meter-indicator-needle" id="yawNeedle"></div>
+              </div>
+              <div class="gauge-ticks">
+                <span>-45° L</span>
+                <span>0°</span>
+                <span>+45° R</span>
+              </div>
+            </div>
+
+            <!-- Pitch (Up - Down) Gauge -->
+            <div class="gauge-box">
+              <div class="gauge-meta">
+                <span class="gauge-name">PITCH (Up / Down)</span>
+                <span class="gauge-val mono" id="pitchVal">0.0°</span>
+              </div>
+              <div class="horizontal-meter-track">
+                <div class="meter-center-mark"></div>
+                <div class="meter-danger-zone left"></div>
+                <div class="meter-danger-zone right"></div>
+                <div class="meter-indicator-needle" id="pitchNeedle"></div>
+              </div>
+              <div class="gauge-ticks">
+                <span>-35° Up</span>
+                <span>0°</span>
+                <span>+35° Down</span>
+              </div>
+            </div>
+
+            <!-- Roll (Tilt) Gauge -->
+            <div class="gauge-box">
+              <div class="gauge-meta">
+                <span class="gauge-name">ROLL (Head Tilt)</span>
+                <span class="gauge-val mono" id="rollVal">0.0°</span>
+              </div>
+              <div class="horizontal-meter-track">
+                <div class="meter-center-mark"></div>
+                <div class="meter-indicator-needle" id="rollNeedle"></div>
+              </div>
+              <div class="gauge-ticks">
+                <span>-30°</span>
+                <span>0°</span>
+                <span>+30°</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="calibration-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>Look naturally at the center of your exam questions and click <strong>"Calibrate Neutral Posture"</strong> to zero baseline angles.</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PANEL: Telemetry, KPIs, Evidence Stream & Audit Export -->
+      <section class="right-panel">
+        
+        <!-- Live Integrity Score Card -->
+        <div class="integrity-card">
+          <div class="score-container">
+            <!-- Radial Circular Progress Gauge -->
+            <div class="radial-score-wrapper">
+              <svg class="score-circle-svg" viewBox="0 0 120 120">
+                <circle class="score-circle-bg" cx="60" cy="60" r="50"/>
+                <circle class="score-circle-progress" id="scoreCircleProgress" cx="60" cy="60" r="50"/>
+              </svg>
+              <div class="score-inner-text">
+                <span class="score-number mono" id="integrityScoreVal">100</span>
+                <span class="score-unit">%</span>
+              </div>
+            </div>
+
+            <div class="score-details">
+              <div class="score-title-row">
+                <h3>LIVE INTEGRITY SCORE</h3>
+                <span class="score-badge badge-clean" id="integrityVerdictBadge">EXCELLENT</span>
+              </div>
+              <p class="score-description" id="integrityDescription">
+                Session in progress with no serious integrity infractions recorded. Cooldown protection active.
+              </p>
+              <div class="cooldown-pill" id="cooldownIndicator">
+                <span class="cooldown-dot"></span>
+                <span id="cooldownText">Violation Cooldown: Ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Metrics Grid (5 Core Cards) -->
+        <div class="kpi-grid">
+          <!-- KPI 1: Total Warnings -->
+          <div class="kpi-card" id="kpiWarningsCard">
+            <div class="kpi-icon-wrap yellow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">TOTAL WARNINGS</span>
+              <span class="kpi-value mono" id="kpiTotalWarnings">0</span>
+            </div>
+          </div>
+
+          <!-- KPI 2: Look-Away Duration -->
+          <div class="kpi-card" id="kpiLookAwayCard">
+            <div class="kpi-icon-wrap orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">LOOK-AWAY TIME</span>
+              <span class="kpi-value mono" id="kpiLookAwayDuration">0.0s</span>
+            </div>
+          </div>
+
+          <!-- KPI 3: Total Absence Time -->
+          <div class="kpi-card" id="kpiAbsenceCard">
+            <div class="kpi-icon-wrap red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="8.5" cy="7" r="4"/>
+                <line x1="18" y1="8" x2="23" y2="13"/>
+                <line x1="23" y1="8" x2="18" y2="13"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">ABSENCE TIME</span>
+              <span class="kpi-value mono" id="kpiAbsenceDuration">0.0s</span>
+            </div>
+          </div>
+
+          <!-- KPI 4: Tab / App Switches -->
+          <div class="kpi-card" id="kpiTabSwitchesCard">
+            <div class="kpi-icon-wrap purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">TAB SWITCHES</span>
+              <span class="kpi-value mono" id="kpiTabSwitches">0</span>
+            </div>
+          </div>
+
+          <!-- KPI 5: Prohibited Items Flagged -->
+          <div class="kpi-card" id="kpiDevicesCard">
+            <div class="kpi-icon-wrap cyan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                <line x1="12" y1="18" x2="12.01" y2="18"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">DEVICES FLAGGED</span>
+              <span class="kpi-value mono" id="kpiDevicesCount">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Visual Evidence Stream -->
+        <div class="incident-feed-card">
+          <div class="feed-header">
+            <div class="feed-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <h3>Audit Telemetry & Visual Evidence Log</h3>
+            </div>
+
+            <!-- Feed Filter Pills -->
+            <div class="feed-filters">
+              <button class="filter-btn active" data-filter="all">All (<span id="countFilterAll">0</span>)</button>
+              <button class="filter-btn" data-filter="high">Violations (<span id="countFilterHigh">0</span>)</button>
+              <button class="filter-btn" data-filter="warn">Warnings (<span id="countFilterWarn">0</span>)</button>
+              <button class="filter-btn" data-filter="evidence">With Evidence (<span id="countFilterEvidence">0</span>)</button>
+            </div>
+          </div>
+
+          <!-- Scrollable Log Container -->
+          <div class="log-stream-container" id="logStreamContainer">
+            <div class="empty-log-state" id="emptyLogState">
+              <div class="empty-icon">🛡️</div>
+              <p>No proctoring violations recorded yet.</p>
+              <span>Audit timeline and captured photographic evidence will appear here in real-time.</span>
+            </div>
+            <div class="log-items-list" id="logItemsList"></div>
+          </div>
+
+          <!-- Bottom Export Actions Toolbar -->
+          <div class="export-toolbar">
+            <button id="btnExportCSV" class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Download CSV Audit Log</span>
+            </button>
+
+            <button id="btnExportPDF" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              <span>Generate Printable PDF Report</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Slide-out Configuration Settings Drawer -->
+    <div class="settings-drawer-backdrop" id="settingsBackdrop"></div>
+    <aside class="settings-drawer" id="settingsDrawer">
+      <div class="drawer-header">
+        <div class="drawer-header-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <h2>Proctoring Rules & Sensitivity</h2>
+        </div>
+        <button id="btnSettingsClose" class="btn-close" aria-label="Close settings">&times;</button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Candidate Profile Form -->
+        <div class="form-section">
+          <h4>Candidate Information</h4>
+          <div class="form-row">
+            <label for="cfgCandidateName">Candidate Full Name:</label>
+            <input type="text" id="cfgCandidateName" value="Jane Doe" placeholder="e.g. Alex Morgan">
+          </div>
+          <div class="form-row">
+            <label for="cfgCandidateId">Student / Candidate ID:</label>
+            <input type="text" id="cfgCandidateId" value="ST-8821" placeholder="e.g. CS-2026-904">
+          </div>
+          <div class="form-row">
+            <label for="cfgExamTitle">Exam Title / Subject:</label>
+            <input type="text" id="cfgExamTitle" value="CS-401 Computer Vision & AI Finals" placeholder="e.g. Advanced Calculus">
+          </div>
+        </div>
+
+        <!-- Detection Thresholds -->
+        <div class="form-section">
+          <h4>AI Detection Thresholds</h4>
+          
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgLookAwayTime">Sustained Look-Away Duration Trigger:</label>
+              <span class="slider-val mono" id="cfgLookAwayTimeVal">3.0s</span>
+            </div>
+            <input type="range" id="cfgLookAwayTime" min="1.0" max="6.0" step="0.5" value="3.0">
+            <small>Continuous gaze deviation required to flag a sustained look-away warning.</small>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgAbsenceTime">Candidate Absence Timeout:</label>
+              <span class="slider-val mono" id="cfgAbsenceTimeVal">2.0s</span>
+            </div>
+            <input type="range" id="cfgAbsenceTime" min="1.0" max="5.0" step="0.5" value="2.0">
+            <small>Seconds of zero detected faces before triggering Absent from Frame alert.</small>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgYawThreshold">Yaw Angle Sensitivity (Left/Right):</label>
+              <span class="slider-val mono" id="cfgYawThresholdVal">22°</span>
+            </div>
+            <input type="range" id="cfgYawThreshold" min="15" max="40" step="1" value="22">
+            <small>Degrees of horizontal head turn relative to calibrated baseline.</small>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgPitchThreshold">Pitch Down Sensitivity (Looking Down):</label>
+              <span class="slider-val mono" id="cfgPitchThresholdVal">18°</span>
+            </div>
+            <input type="range" id="cfgPitchThreshold" min="12" max="35" step="1" value="18">
+            <small>Degrees of downward tilt (looking at lap, keyboard, notes).</small>
+          </div>
+
+        <!-- 4-Stage False-Positive Suppression Filter Controls -->
+        <div class="form-section">
+          <h4>4-Stage False-Positive Suppression</h4>
+          
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgPhoneConf">Cell Phone Base Confidence (Two-Tier Angled Mode):</label>
+              <span class="slider-val mono" id="cfgPhoneConfVal">20%</span>
+            </div>
+            <input type="range" id="cfgPhoneConf" min="15" max="60" step="5" value="20">
+            <small>Lower 0.20 base allows tilted/sideways phones into Tier-2 verification, preventing missed angled devices.</small>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgBookConf">Book Minimum Confidence:</label>
+              <span class="slider-val mono" id="cfgBookConfVal">45%</span>
+            </div>
+            <input type="range" id="cfgBookConf" min="30" max="80" step="5" value="45">
+            <small>Filters out stationary paper and background notebooks.</small>
+          </div>
+
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgSkinFilter" checked>
+              <span>Enable Rigid Edge + Non-Skin Core Filter (cv2.Canny + YCrCb/HSV)</span>
+            </label>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgSkinRatio">Hand Skin-Tone Rejection Threshold:</label>
+              <span class="slider-val mono" id="cfgSkinRatioVal">80%</span>
+            </div>
+            <input type="range" id="cfgSkinRatio" min="60" max="90" step="5" value="80">
+            <small>Only rejects as bare hand if >80% skin AND lacks linear edges or dark/lit phone core.</small>
+          </div>
+
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgMotionLock" checked>
+              <span>Enable Static Background Motion Lock (&lt; 6px over 2.5s ignored)</span>
+            </label>
+          </div>
+
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgWorkspaceROI" checked>
+              <span>Enforce Active Workspace ROI (ignore upper background clothes hangers)</span>
+            </label>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="cfgTemporalConfirm">Temporal Persistence Confirmation:</label>
+              <span class="slider-val mono" id="cfgTemporalConfirmVal">2 of 5 frames</span>
+            </div>
+            <input type="range" id="cfgTemporalConfirm" min="1" max="5" step="1" value="2">
+            <small>Rapid confirmation buffer (2 of 5 frames + 1.5s memory) catches brief angled phone glances.</small>
+          </div>
+
+          <div class="room-mask-drawer-card">
+            <div class="room-mask-info-row">
+              <span class="label">Room Background Mask:</span>
+              <span class="val mono" id="cfgRoomMaskSummary">0 zones calibrated</span>
+            </div>
+            <button id="btnClearRoomMask" class="btn btn-secondary btn-sm" disabled>Clear Room Mask</button>
+          </div>
+        </div>
+
+        <!-- Cooldown & Audio -->
+        <div class="form-section">
+          <h4>Alert Behavior & Sound</h4>
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgAudioAlerts" checked>
+              <span>Play audible warning tone on high-severity infractions</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgSnapshotsEnabled" checked>
+              <span>Capture photographic visual evidence snapshots</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <label>
+              <input type="checkbox" id="cfgAntiCheatTab" checked>
+              <span>Flag browser tab switching & window minimize</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <button id="btnSettingsReset" class="btn btn-secondary">Reset to Defaults</button>
+        <button id="btnSettingsSave" class="btn btn-primary">Apply Settings</button>
+      </div>
+    </aside>
+
+    <!-- Visual Evidence Inspection Modal -->
+    <div class="modal-backdrop hidden" id="evidenceModalBackdrop">
+      <div class="modal-card" id="evidenceModalCard">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-tag red">HIGH SEVERITY EVIDENCE</span>
+            <h3 id="modalEvidenceTitle">Cell Phone Detected</h3>
+          </div>
+          <button id="btnModalClose" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-image-container">
+            <img id="modalEvidenceImage" src="" alt="Violation Photographic Evidence">
+          </div>
+          <div class="modal-meta-grid">
+            <div class="modal-meta-item">
+              <span class="label">TIMESTAMP:</span>
+              <span class="val mono" id="modalEvidenceTime">-</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="label">SESSION ELAPSED:</span>
+              <span class="val mono" id="modalEvidenceElapsed">-</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="label">INTEGRITY AT INCIDENT:</span>
+              <span class="val mono" id="modalEvidenceScore">-</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="label">DETAILS:</span>
+              <span class="val" id="modalEvidenceDetails">-</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnDownloadEvidenceImage" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Save High-Res Snapshot</span>
+          </button>
+          <button id="btnModalDone" class="btn btn-primary">Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Printable Official Audit Report Container (Hidden on screen, populated dynamically for print/PDF) -->
+    <div id="printReportContainer" class="print-only"></div>
+
+  </div>
+
+  <!-- Main Application Script (ES Module with WebAssembly MediaPipe Vision tasks) -->
+  <script type="module" src="proctor.js"></script>
+</body>
+</html>

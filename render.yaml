@@ -1,0 +1,11 @@
+services:
+  # Option 1: Docker Web Service (Full Python FastAPI backend + Frontend)
+  - type: web
+    name: sentinel-ai-proctor
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8000
